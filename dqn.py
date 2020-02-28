@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from collections import namedtuple, deque
 from copy import deepcopy, copy
+
 import os
 
 import pickle
@@ -130,16 +131,17 @@ class DQNAgent:
             ep_reward.append(self.rewards)
         mean_reward = np.mean(ep_reward)
         ep_reward = []
-        print('this policy yielded 100 episode reward of {}'.format(mean_reward))
+        # print('this policy yielded 100 episode reward of {}'.format(mean_reward))
         torch.cuda.empty_cache()
+        return mean_reward
                         
 
 
     # Implement DQN training algorithm
-    def train(self, gamma=0.99, max_episodes=2000, 
+    def train(self, gamma=0.99, max_episodes=1000, 
               batch_size=32,
               network_update_frequency=4,
-              network_sync_frequency=1000):
+              network_sync_frequency=2000):
         self.gamma = gamma
         # Populate replay buffer
         while self.buffer.burn_in_capacity() < 1:
@@ -174,10 +176,10 @@ class DQNAgent:
                         ep, mean_rewards), end="")
 
                     if self.best_mean != None:
-                        if mean_rewards >= self.best_mean*1.25:
+                        impr = (mean_rewards - self.best_mean)/self.best_mean
+                        if impr >= 0.25:
                             self.best_mean = mean_rewards
-                            print('Saw greater than 10 percent imporvement')
-                            print('Sending weights')
+
                             self.broadcast_weights()
                     else:
                         self.best_mean = mean_rewards

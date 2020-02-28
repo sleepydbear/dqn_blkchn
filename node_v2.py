@@ -8,7 +8,7 @@ import json
 import requests
 from interaction import Interaction
 import time
-
+from hash_utils import hash_string_256
 from dqn import QNetwork,experienceReplayBuffer,DQNAgent
 import gym
 
@@ -28,12 +28,14 @@ buffer = None
 dqn = None
 agent = None
 assigned = False
-peers = 2
+peers = 6
 
 test_dqn = None
 test_agent = None
 test_buffer =None
 test_env = None
+best_policy_performances = {}
+
 
 @app.route('/assign', methods=['PUT'])
 def assign_task():
@@ -72,7 +74,7 @@ def assign_task():
 
 @app.route('/broadcast-transaction', methods=['PUT'])
 def broadcast_transaction():
-    global test_agent,test_buffer,test_dqn
+    global test_agent,test_buffer,test_dqn,best_policy_performances
     values = request.get_json()
 
     sender = values['sender']
@@ -81,7 +83,7 @@ def broadcast_transaction():
     signature = values['signature']
     timestamp = values['timestamp']
     blockchain.add_interaction(sender,message,metadata,timestamp,signature)
-
+    print(best_policy_performances)
     if message == 'NN update':
         test_env_name = metadata['env']
         test_env = gym.make(test_env_name)
@@ -89,39 +91,50 @@ def broadcast_transaction():
         test_dqn =  QNetwork(test_env, learning_rate=1e-3)
         test_agent = DQNAgent(blockchain, wallet, port, peers, test_env, test_dqn, test_buffer)
         pickled_weights = metadata['weights']
-        test_agent.test(pickled_weights)
+        
+        if test_env_name in best_policy_performances:
+            cp = best_policy_performances[test_env_name]
+            result = test_agent.test(pickled_weights)
+            impr = (result - cp)/cp
+            if impr > 0.25:
+                reply = 'Improvement observed'
+            else:   
+                reply = 'Dud policy'
+        else:
+            reply = 'Policy tracking started'
+            result = test_agent.test(pickled_weights)
+            best_policy_performances[test_env_name] = result
+
+        #broadcast transaction reply
+        hashed_signature = hash_string_256(signature.encode())
+        metadata = {'sig_hash': hashed_signature,'sender':sender}
+        message = reply
+        timestamp = time.time()
+        signature = wallet.sign_interaction(wallet.public_key,message,metadata,timestamp)
+        blockchain.add_interaction(wallet.public_key,message,metadata,timestamp,signature)
+        for peer in range(5000,5000+peers+1):
+            if peer != port:
+                url = 'http://192.168.1.9:{}/broadcast-transaction'.format(str(peer))
+                try:
+                    post_transaction = requests.put(url, json={'sender': wallet.public_key, 'message': message,
+                                                'metadata':metadata, 'timestamp':timestamp, 'signature': signature})                
+                except requests.exceptions.ConnectionError:
+                    continue
 
     response = {
             'message': 'request received'
         }
     return jsonify(response), 201
 
-@app.route('/baa', methods=['PUT'])
-def baa():
-    global test_agent,test_buffer,test_dqn
-    
-    test_buffer = experienceReplayBuffer(memory_size=1000000, burn_in=10000)
-    test_dqn =  QNetwork(env, learning_rate=1e-3)
-    test_agent = DQNAgent(blockchain, wallet, port, peers, env, test_dqn, test_buffer)
-    
-    test_agent.test()
-
-    test_buffer = None
-    test_dqn = None
-    test_agent = None
-    response = {
-            'message': 'baa received'
-        }
-    return jsonify(response), 201
 
 @app.route('/train', methods=['PUT'])
 def train():
     global env,buffer,dqn,agent,assigned
-    # values = request.get_data()
+    values = request.get_data()
     # myJson = json.loads(values.decode("utf-8"))
 
     if assigned:
-        agent.train(max_episodes=20000, network_update_frequency=1, network_sync_frequency=2500)
+        agent.train(max_episodes=1000, network_update_frequency=1, network_sync_frequency=2500)
         response = {
                 'message': 'Training done'
             }
@@ -131,6 +144,18 @@ def train():
                 'message': 'Task assignment not done, cannot train!'
             }
         return jsonify(response), 500
+
+@app.route('/broadcast-block', methods=['PUT'])
+def broadcast_block():
+    values = request.get_data()
+    myJson = json.loads(values.decode("utf-8"))
+    block = myJson['block']
+    blockchain.add_block(block)
+    response = {
+            'message': 'request received'
+        }
+    return jsonify(response), 201
+
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -147,6 +172,6 @@ if __name__ == "__main__":
     else:
         print('loaded existing wallet')
 
-    blockchain = Blockchain(wallet.public_key,port)
+    blockchain = Blockchain(wallet.public_key,peers,port)
 
     app.run(host='192.168.1.9', port=int(port))

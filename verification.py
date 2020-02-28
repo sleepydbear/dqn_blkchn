@@ -4,10 +4,10 @@ from wallet import Wallet
 class Verification:
 
     @staticmethod
-    def valid_proof(interactions, last_hash, proof):
+    def valid_proof(interactions, outcome, last_hash, proof):
 
         # Create a string with all the hash inputs
-        guess = (str([tx.to_ordered_dict() for tx in interactions]) + str(last_hash) + str(proof)).encode()
+        guess = (str([tx.to_ordered_dict() for tx in interactions]) + str(outcome) +  str(last_hash) + str(proof)).encode()
 
         guess_hash = hash_string_256(guess)
 
