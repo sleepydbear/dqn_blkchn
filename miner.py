@@ -13,7 +13,7 @@ metadata = 'vehicle info: 151223'
 app = Flask(__name__)
 CORS(app)
 
-mining_schedule_delay = 5
+mining_schedule_delay = 10
 
 peers = 6
 

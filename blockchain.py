@@ -52,12 +52,12 @@ class Blockchain:
                 updates.append(update)
             elif m == 'NN update':
                 i_hash_sig = hash_string_256(i.signature.encode())
-                nn_queries.append({'Agent':i.sender,'sig_hash':i_hash_sig, 'NN':i.metadata['weights'],'Timestamp':i.timestamp})
+                nn_queries.append({'Agent':i.sender,'sig_hash':i_hash_sig, 'NN':i.metadata['weights'],'env':i.metadata['env'],'Timestamp':i.timestamp})
             elif m == 'Policy tracking started':
                 sig_hash = i.metadata['sig_hash']
                 if sig_hash in nn_replies:
                     l = nn_replies[sig_hash]
-                    l.append({'Agent':i.sender,'Action':'Policy tracking started','Sender':i.metadata['sender'],'Timestamp':i.timestamp})
+                    l.append({'Agent':i.sender,'Action':'Policy tracking started','Sender':i.metadata['sender'],'env':i.metadata['env'],'Timestamp':i.timestamp})
                     nn_replies[sig_hash] = l
                 else:
                     nn_replies[sig_hash] = [{'Agent':i.sender,'Action':'Policy tracking started'}]
@@ -65,7 +65,7 @@ class Blockchain:
                 sig_hash = i.metadata['sig_hash']
                 if sig_hash in nn_replies:
                     l = nn_replies[sig_hash]
-                    l.append({'Agent':i.sender,'Action':'Policy improvement observed','Sender':i.metadata['sender'],'Timestamp':i.timestamp})
+                    l.append({'Agent':i.sender,'Action':'Policy improvement observed','Sender':i.metadata['sender'],'env':i.metadata['env'],'Timestamp':i.timestamp})
                     nn_replies[sig_hash] = l
                 else:
                     nn_replies[sig_hash] = [{'Agent':i.sender,'Action':'Policy improvement observed'}]
@@ -76,7 +76,7 @@ class Blockchain:
                     l.append({'Agent':i.sender,'Action':'Bad policy update'})
                     nn_replies[sig_hash] = l
                 else:
-                    nn_replies[sig_hash] = [{'Agent':i.sender,'Action':'Bad policy update','Sender':i.metadata['sender'],'Timestamp':i.timestamp}]
+                    nn_replies[sig_hash] = [{'Agent':i.sender,'Action':'Bad policy update','Sender':i.metadata['sender'],'env':i.metadata['env'],'Timestamp':i.timestamp}]
             else:
                 pass
         # print(nn_queries)
@@ -87,7 +87,7 @@ class Blockchain:
             p_y,p_n = 0,0
             for r in replies:
                 if r['Action']=='Policy tracking started':
-                    update = {'Agent':q['Agent'], 'Action': 'Initial Policy','Policy':q['NN'],'Timestamp':q['Timestamp']}
+                    update = {'Agent':q['Agent'], 'Action': 'Initial Policy','Environment':q['env'],'Policy':q['NN'],'Timestamp':q['Timestamp']}
                     updates.append(update)
                     break
                 else:
@@ -97,9 +97,9 @@ class Blockchain:
                         p_n += 1
             if p_y != 0 or p_n != 0:
                 if p_y > p_n:
-                    update = {'Agent':q['Agent'], 'Action': 'NN update accepted','Policy':q['NN'],'Timestamp':q['Timestamp']}
+                    update = {'Agent':q['Agent'], 'Action': 'NN update accepted','Environment':q['env'],'Policy':q['NN'],'Votes':{'Yes':p_y,'No':p_n},'Timestamp':q['Timestamp']}
                 else:
-                    update = {'Agent':q['Agent'], 'Action': 'NN update rejected','Policy':q['NN'],'Timestamp':q['Timestamp']}
+                    update = {'Agent':q['Agent'], 'Action': 'NN update rejected','Environment':q['env'],'Policy':q['NN'],'Votes':{'Yes':p_y,'No':p_n},'Timestamp':q['Timestamp']}
                 updates.append(update)
 
         self.outcome = updates

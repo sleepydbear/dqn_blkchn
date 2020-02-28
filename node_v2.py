@@ -36,6 +36,19 @@ test_buffer =None
 test_env = None
 best_policy_performances = {}
 
+@app.route('/refresh', methods=['PUT'])
+def refresh_history():
+    blk_chn = blockchain.chain.copy()
+    outcomes = []
+    for b in blk_chn:
+        outcomes += b.outcome
+
+
+    response = {
+            'message': 'refresh request received',
+            'outcomes': outcomes
+        }
+    return jsonify(response), 201
 
 @app.route('/assign', methods=['PUT'])
 def assign_task():
@@ -96,8 +109,10 @@ def broadcast_transaction():
             cp = best_policy_performances[test_env_name]
             result = test_agent.test(pickled_weights)
             impr = (result - cp)/cp
+            print(result,cp,impr)
             if impr > 0.25:
                 reply = 'Improvement observed'
+                best_policy_performances[test_env_name] = result
             else:   
                 reply = 'Dud policy'
         else:
@@ -107,7 +122,7 @@ def broadcast_transaction():
 
         #broadcast transaction reply
         hashed_signature = hash_string_256(signature.encode())
-        metadata = {'sig_hash': hashed_signature,'sender':sender}
+        metadata = {'sig_hash': hashed_signature,'sender':sender,'env': metadata['env']}
         message = reply
         timestamp = time.time()
         signature = wallet.sign_interaction(wallet.public_key,message,metadata,timestamp)

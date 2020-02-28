@@ -129,8 +129,8 @@ class DQNAgent:
                 done = self.take_step(mode='test')
                 
             ep_reward.append(self.rewards)
+        # print(ep_reward)
         mean_reward = np.mean(ep_reward)
-        ep_reward = []
         # print('this policy yielded 100 episode reward of {}'.format(mean_reward))
         torch.cuda.empty_cache()
         return mean_reward
